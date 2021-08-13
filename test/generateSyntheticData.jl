@@ -20,15 +20,15 @@ problem = initialize_process_model(
     u0 = u0
 )
 
-sol = solve(problem, AutoVern7(Rodas4()), reltol = 1e-5, saveat = 0.15)
-synthData =  sol + 0.01*randn(size(Array(sol1)))
+sol = solve(
+    problem, 
+    OrdinaryDiffEq.AutoVern7(OrdinaryDiffEq.Rodas4()), 
+    reltol = 1e-5, 
+    saveat = 0.15
+)
 
-# Convert to data frame
-synthDataDF = DataFrame(t = sol.t, DO = vec(synthData))
+synthData =  vec(sol + 0.01*randn(size(Array(sol))))
 
-# Plot synthetic data
-plot(sol, alpha = 0.3, legend = false); scatter!(sol1.t, synthData')
-
-
-model = fit_metabolism(ODE = problem, times = times, nDays = 3, PARData = PARData, OSatData = OSatData)
-sample(model, MH(), 1)
+# Plot synthetic data with model solution
+Plots.plot(sol, alpha = 0.3, legend = false); 
+Plots.scatter!(sol.t, synthData)
