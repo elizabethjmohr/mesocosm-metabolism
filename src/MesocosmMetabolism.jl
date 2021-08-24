@@ -8,6 +8,7 @@ using Plots
 using Distributions
 using LinearAlgebra
 using OrdinaryDiffEq
+using FillArrays
 
 import Distributions.truncated
 import Distributions.Normal
@@ -20,10 +21,12 @@ include("processModel.jl")
 include("initializeProcessModel.jl")
 include("statisticalModel.jl")
 include("generateSyntheticData.jl")
+include("simulateMetabolism.jl")
 
 export mesocosm_metabolism!
 export initialize_process_model
 export fit_metabolism
-export generateSyntheticData
+export generate_synthetic_data
+export simulate_metabolism
 
 end

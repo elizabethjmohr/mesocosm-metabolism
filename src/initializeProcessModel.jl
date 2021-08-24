@@ -1,8 +1,5 @@
 # initialize DE based on priors, nDays, etc.
-function initialize_process_model(;times, PARData, OSatData, GPP_daily, ER_daily, kGas = 1.05, Q = 1.794, dayStart = 4, u0)
-    
-    PAR = interpolate((times,), PARData, Gridded(Linear()))
-    OSat = interpolate((times,), OSatData, Gridded(Linear()))
+function initialize_process_model(;times, PAR, OSat, day, GPP_daily, ER_daily, kGas = 1.05, Q = 1.794, dayStart = 4, u0)
 
     if convert(Int64, floor(maximum(times)/24.0 - dayStart/24.0) + 1) > length(GPP_daily)
         error("The simulation timespan contains more days than are provided in GPP_daily")
@@ -11,6 +8,7 @@ function initialize_process_model(;times, PARData, OSatData, GPP_daily, ER_daily
     p = Dict(
         "PAR" => PAR,
         "OSat" => OSat,
+        "day" => day,
         "GPP_daily"=> GPP_daily,
         "ER_daily" => ER_daily, 
         "kGas" => kGas, 
