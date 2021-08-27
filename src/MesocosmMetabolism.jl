@@ -20,13 +20,11 @@ import OrdinaryDiffEq.Rodas4
 include("processModel.jl")
 include("initializeProcessModel.jl")
 include("statisticalModel.jl")
-include("generateSyntheticData.jl")
-include("simulateMetabolism.jl")
+include("simulateData.jl")
 
 export mesocosm_metabolism!
 export initialize_process_model
-export fit_metabolism
-export generate_synthetic_data
-export simulate_metabolism
+export statisticalModel
+export simulate_data
 
 end

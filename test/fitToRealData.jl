@@ -1,7 +1,6 @@
-using MesocosmMetabolism, CSV, Turing, DataFrames, MCMCChains, StatsPlots, Interpolations
+using MesocosmMetabolism, CSV, Turing, DataFrames, MCMCChains, StatsPlots, Interpolations, ReverseDiff
 
 data = CSV.read("/Users/elizabethmohr/Documents/MSU/RProjects/stream-analogue-mesocosms/data/test1.csv", DataFrame)
-
 Q = 1.794
 dayStart = 4
 times = data.modelTime # hours
@@ -35,32 +34,24 @@ problem = initialize_process_model(
     ER_daily = fill(ER_daily_mu, nDays), 
     kGas = exp(k600_meanlog), 
     Q = Q, 
+    V = V,
     dayStart = dayStart, 
     u0 = u0)
 
-model = fit_metabolism(
-    DOdata = data.DO_mgL, 
-    ODE = problem, 
-    times = times, 
-    nDays = 1, 
-    PAR = PAR, 
-    OSat = OSat, 
-    day = day,
-    GPP_daily_mu = GPP_daily_mu, 
-    GPP_daily_sigma = GPP_daily_sigma, 
-    ER_daily_mu = ER_daily_mu, 
-    ER_daily_sigma = ER_daily_sigma, 
-    k600_meanlog = k600_meanlog, 
-    k600_sdlog = k600_sdlog, 
-    Q =  Q, 
-    dayStart = dayStart, 
-    K02_conv = K02_conv, 
-    err_obs_iid_sigma_scale = err_obs_iid_sigma_scale, 
-    err_proc_iid_sigma_scale= err_proc_iid_sigma_scale
-)
+model = statisticalModel(
+    nDays, 
+    GPP_daily_mu, 
+    GPP_daily_sigma, 
+    ER_daily_mu, 
+    ER_daily_sigma, 
+    k600_meanlog, 
+    k600_sdlog, 
+    K02_conv, 
+    err_obs_iid_sigma_scale, 
+    err_proc_iid_sigma_scale)
 
-setadbackend(:forwarddiff)
-chains = sample(model, NUTS(0.80), MCMCThreads(), 10, 3)
+sampleMe = model(DOdata = data.DO_mgL, ODE = problem,times = times)
+chains = sample(sampleMe, NUTS(0.80), MCMCThreads(), 20, 3)
 
 gelmandiag(chains)
 
@@ -163,8 +154,9 @@ for k in 1:n
     k600 = Array(select(df, "k600")[rows[k],:])[1]
     problem = initialize_process_model(
         times = times, 
-        PARData = PARData, 
-        OSatData = OSatData, 
+        PAR = PAR, 
+        OSat = OSat,
+        day = day,  
         GPP_daily = GPP, 
         ER_daily = ER, 
         kGas = k600, 
