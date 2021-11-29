@@ -1,4 +1,4 @@
-using Interpolations, DifferentialEquations, Turing, FillArrays
+using Interpolations, DifferentialEquations, Turing, FillArrays, ReverseDiff
 
 # Define ODE
 function mesocosm_metabolism!(du,u,p,t)
@@ -62,7 +62,6 @@ fakeData = vec(sol) + 0.2*rand(length(times))
 end
 
 model = f(DOdata = fakeData, ODE = problem)
-using ReverseDiff
 setadbackend(:reversediff)
 samples = sample(model, NUTS(0.65), 10)
 

@@ -1,15 +1,9 @@
 using MesocosmMetabolism, CSV, Turing, DataFrames, MCMCChains, StatsPlots, Interpolations, ReverseDiff
 
-data = CSV.read("/Users/elizabethmohr/Documents/MSU/RProjects/stream-analogue-mesocosms/data/test1.csv", DataFrame)
-Q = 1.794
+data = CSV.read("/Users/elizabethmohr/Documents/MSU/RProjects/stream-analogue-mesocosms/data/DO.csv", DataFrame)
+Q = 1.794 #L/hr
+V = 27.0 # L
 dayStart = 4
-times = data.modelTime # hours
-PAR = Interpolations.ConstantInterpolation((times,), data.PAR)
-OSat = Interpolations.interpolate((times,), data."DO.sat", Interpolations.Gridded(Interpolations.Linear()))
-nDays = 1
-days = [convert(Int64, floor(times[i]/24.0 - (dayStart/24.0)) + 1) for i in 1:length(times)]
-day = Interpolations.ConstantInterpolation((times,), days)
-
 
 # Note: these priors are taken from the default values in streamMetabolizer,
 # converted to units of hours and converted to a per volume basis
@@ -23,35 +17,47 @@ k600_sdlog = 0.53
 K02_conv = 1.0
 err_obs_iid_sigma_scale = 0.03
 err_proc_iid_sigma_scale = 5.0
-u0 = [data.DO_mgL[1]]
 
-problem = initialize_process_model(
-    times = times, 
-    PAR = PAR, 
-    OSat = OSat, 
-    day = day,
-    GPP_daily = fill(GPP_daily_mu, nDays), 
-    ER_daily = fill(ER_daily_mu, nDays), 
-    kGas = exp(k600_meanlog), 
-    Q = Q, 
-    V = V,
-    dayStart = dayStart, 
-    u0 = u0)
+setadbackend(:reversediff)
 
-model = statisticalModel(
-    nDays, 
-    GPP_daily_mu, 
-    GPP_daily_sigma, 
-    ER_daily_mu, 
-    ER_daily_sigma, 
-    k600_meanlog, 
-    k600_sdlog, 
-    K02_conv, 
-    err_obs_iid_sigma_scale, 
-    err_proc_iid_sigma_scale)
+results = Dict()
+for i in unique(data[:,:loggerID])[1:4]
+    subset = filter(r -> r[:loggerID] == i, data)
+    times = subset.modelTime
+    PAR = Interpolations.ConstantInterpolation((times,), subset.PAR)
+    OSat = Interpolations.interpolate((times,), subset."DO.sat", Interpolations.Gridded(Interpolations.Linear()))
+    days = [convert(Int64, floor(times[i]/24.0 - (dayStart/24.0)) + 1) for i in 1:length(times)]
+    day = Interpolations.ConstantInterpolation((times,), days)
+    u0 = [subset.DO_mgL[1]]
+    nDays = convert(Int64,ceil((maximum(times) - minimum(times))/24))
+    problem = initialize_process_model(
+        times = times, 
+        PAR = PAR, 
+        OSat = OSat, 
+        day = day,
+        GPP_daily = fill(GPP_daily_mu, nDays), 
+        ER_daily = fill(ER_daily_mu, nDays), 
+        kGas = exp(k600_meanlog), 
+        Q = Q, 
+        V = V,
+        dayStart = dayStart, 
+        u0 = u0)
+    model = statisticalModel(
+        nDays, 
+        GPP_daily_mu, 
+        GPP_daily_sigma, 
+        ER_daily_mu, 
+        ER_daily_sigma, 
+        k600_meanlog, 
+        k600_sdlog, 
+        K02_conv, 
+        err_obs_iid_sigma_scale, 
+        err_proc_iid_sigma_scale)
 
-sampleMe = model(DOdata = data.DO_mgL, ODE = problem,times = times)
-chains = sample(sampleMe, NUTS(0.80), MCMCThreads(), 20, 3)
+    sampleMe = model(DOdata = subset.DO_mgL, ODE = problem,times = times)
+    chains = sample(sampleMe, NUTS(), MCMCThreads(), 1000, 3) 
+    results[i] = chains
+end
 
 gelmandiag(chains)
 
@@ -80,9 +86,7 @@ df = DataFrame(chains)
     xguidefontsize=15, 
     yguidefontsize = 15)
 
-plot!(
-    truncated(Normal(GPP_daily_mu, GPP_daily_sigma), 0, Inf),
-    lw = 3)
+plot!(Normal(GPP_daily_mu, GPP_daily_sigma),lw = 3)
 
 # ER trace plot
 @df df plot(
@@ -107,9 +111,7 @@ plot!(
     xguidefontsize= 15, 
     yguidefontsize = 15)
 
-plot!(
-    truncated(Normal(ER_daily_mu, ER_daily_sigma), 0, Inf),
-    lw = 3)
+plot!(Normal(ER_daily_mu, ER_daily_sigma),lw = 3)
 
 # k600 trace plot
 @df df plot(
@@ -134,26 +136,37 @@ plot!(
     xguidefontsize= 15, 
     yguidefontsize = 15)
 
-plot!(
-    LogNormal(k600_meanlog, k600_sdlog),
-    lw = 3)
+plot!(LogNormal(k600_meanlog, k600_sdlog),lw = 3)
 
 # Plot data with modeled DO from multiple samples
 using DifferentialEquations
+logger = 415148
+MesocosmData = filter(r -> r[:loggerID] == logger, data)
+df = DataFrame(results[logger])
+times = MesocosmData.modelTime
+PAR = Interpolations.ConstantInterpolation((times,), MesocosmData.PAR)
+OSat = Interpolations.interpolate((times,), MesocosmData."DO.sat", Interpolations.Gridded(Interpolations.Linear()))
+days = [convert(Int64, floor(times[i]/24.0 - (dayStart/24.0)) + 1) for i in 1:length(times)]
+day = Interpolations.ConstantInterpolation((times,), days)
+u0 = [MesocosmData.DO_mgL[1]]
+nDays = convert(Int64,ceil((maximum(times) - minimum(times))/24))
+
 DOPlot = StatsPlots.scatter(
-    times, 
-    data.DO_mgL, 
+    MesocosmData.modelTime, 
+    MesocosmData.DO_mgL, 
     ylabel = "DO (mg/L)",
     xguidefontsize= 15, 
     yguidefontsize = 15);
+
 n = 100
-rows = rand(100:nrow(df), n)
+rows = rand(1:nrow(df), n)
+
 for k in 1:n
-    GPP = Array(select(df, "GPP_daily[1]")[rows[k],:])
-    ER = Array(select(df, "ER_daily[1]")[rows[k], :])
-    k600 = Array(select(df, "k600")[rows[k],:])[1]
+    GPP = Array(df[k, r"^GPP_daily"])
+    ER = Array(df[k, r"^ER_daily"])
+    k600 = df[k, "k600"]
     problem = initialize_process_model(
-        times = times, 
+        times = MesocosmData.modelTime, 
         PAR = PAR, 
         OSat = OSat,
         day = day,  
@@ -161,17 +174,11 @@ for k in 1:n
         ER_daily = ER, 
         kGas = k600, 
         Q = Q, 
+        V = V,
         dayStart = dayStart, 
         u0 = u0)
-    sol = solve(
-        problem, 
-        OrdinaryDiffEq.AutoVern7(OrdinaryDiffEq.Rodas4P2()), 
-        reltol = 1e-5, 
-        maxiters = 1e6,
-        tstops = repeat([7,19], outer = nDays).+24*repeat([i for i in 0:(nDays-1)], inner = 2),
-        saveat = times
-    )
-    plot!(sol, alpha=0.2, color = "#BBBBBB", legend = :false)
+    sol = solve(problem, alg = Euler(), dt = 0.01)
+    plot!(sol, alpha=0.3, color = "#BBBBBB", legend = :false)
 end
 xlabel!("Hour of day")
 

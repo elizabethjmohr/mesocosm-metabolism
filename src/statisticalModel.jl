@@ -37,7 +37,7 @@ function statisticalModel(
 
             for i = 2:length(times)
                 problem = remake(ODE, p = p, u0 = [DO_true[i-1]], tspan = (times[i-1], times[i]))
-                predicted = solve(problem, alg = Euler(), dt = 0.01)
+                predicted = solve(problem, alg = Euler(), dt = 0.1)
                 DO_true[i] ~ Normal(predicted(times[i])[1], err_proc_iid_sigma)
                 DOdata[i] ~ Normal(DO_true[i], err_obs_iid_sigma)
             end
